@@ -1,0 +1,46 @@
+from scapy.all import rdpcap, IP, TCP, UDP
+def generate_suricata_rule(pkt, sid):
+    if IP in pkt:
+        ip_layer = pkt[IP]
+        src_ip = ip_layer.src
+        dst_ip = ip_layer.dst
+        proto = ""
+        src_port = "any"
+        dst_port = "any"
+
+        if TCP in pkt:
+            proto = "tcp"
+            src_port = pkt[TCP].sport
+            dst_port = pkt[TCP].dport
+        elif UDP in pkt:
+            proto = "udp"
+            src_port = pkt[UDP].sport
+            dst_port = pkt[UDP].dport
+        else:
+            return None  # only handle TCP/UDP for now
+
+        msg = f"Suricata auto-rule for {proto.upper()} packet"
+        rule = (f"alert {proto} {src_ip} {src_port} -> {dst_ip} {dst_port} "
+                f"(msg:\"{msg}\"; sid:{sid}; rev:1; classtype:network-activity;)")
+        return rule
+    return None
+
+def main(pcap_file):
+    packets = rdpcap(pcap_file)
+    sid = 2000001  # custom SID range to avoid conflicts
+    rules = []
+
+    for pkt in packets:
+        rule = generate_suricata_rule(pkt, sid)
+        if rule:
+            rules.append(rule)
+            sid += 1
+
+    with open("generated_suricata_rules.rules", "w") as f:
+        for rule in rules:
+            f.write(rule + "\n")
+
+    print(f"[+] Generated {len(rules)} Suricata rules.")
+
+if __name__ == "__main__":
+    main("example.pcap")
